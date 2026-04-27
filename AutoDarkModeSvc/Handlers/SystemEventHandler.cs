@@ -129,15 +129,18 @@ static class SystemEventHandler
     {
         if (e.Mode == PowerModes.Resume)
         {
-            try
+            Task.Run(() =>
             {
-                Logger.Debug("resynchronizing postpone timers with system clock after resume");
-                state.PostponeManager.SyncExpiryTimesWithSystemClock();
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "error while synchronizing postpone timers with system clock: ");
-            }
+                try
+                {
+                    Logger.Debug("resynchronizing postpone timers with system clock after resume");
+                    state.PostponeManager.SyncExpiryTimesWithSystemClock();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex, "error while synchronizing postpone timers with system clock: ");
+                }
+            });
         }
     }
 
@@ -161,7 +164,17 @@ static class SystemEventHandler
                 if (!state.PostponeManager.IsSkipNextSwitch && !state.PostponeManager.IsUserDelayed)
                 {
                     Logger.Info("system unlocked, refreshing theme");
-                    ThemeManager.RequestSwitch(new(SwitchSource.SystemUnlock));
+                    Task.Run(() =>
+                    {
+                        try
+                        {
+                            ThemeManager.RequestSwitch(new(SwitchSource.SystemUnlock));
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error(ex, "error while refreshing theme after system unlock: ");
+                        }
+                    });
                 }
                 else
                 {
@@ -205,8 +218,18 @@ static class SystemEventHandler
             {
                 if (!state.PostponeManager.IsSkipNextSwitch && !state.PostponeManager.IsUserDelayed)
                 {
-                    Logger.Info("system resuming from suspended state, refreshing theme");
-                    ThemeManager.RequestSwitch(new(SwitchSource.SystemUnlock));
+                    Logger.Info("system resuming from suspended state, scheduling theme refresh");
+                    Task.Delay(TimeSpan.FromSeconds(2)).ContinueWith(_ =>
+                    {
+                        try
+                        {
+                            ThemeManager.RequestSwitch(new(SwitchSource.SystemUnlock));
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error(ex, "error while refreshing theme after system resume: ");
+                        }
+                    });
                 }
                 else
                 {
